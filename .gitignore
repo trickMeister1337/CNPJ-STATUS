@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Dados sensíveis — nunca versionar planilhas com CNPJs
+*.csv
+*.xlsx
+*.xls
+
+# Saída gerada
+resultado_cnpjs.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
