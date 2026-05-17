@@ -99,7 +99,8 @@ python cnpj_status.py fornecedores.xlsx
   [   51/10000] ✓ ...
   ...
 
-[+] Concluído. Resultado salvo em: resultado_cnpjs.xlsx
+[+] Planilha salva em: resultado_cnpjs.xlsx
+[+] Relatório salvo em: relatorio_cnpj_status.html
 
 --- Resumo ---
   Ativa: 7832
@@ -128,20 +129,26 @@ O script aceita CNPJs com ou sem pontuação (`/`, `.`, `-`).
 
 ### `resultado_cnpjs.xlsx`
 
-Contém todas as colunas originais acrescidas dos campos enriquecidos pela API:
+Contém todas as colunas originais acrescidas de 5 campos enriquecidos pela API:
 
-| cnpj | ... | status | nome_fantasia | razao_social | data_situacao_cadastral | motivo_situacao_cadastral |
-|---|---|---|---|---|---|---|
-| 00.000.000/0001-91 | ... | Ativa | — | Empresa A S.A. | 2010-03-15 | — |
-| 33000167000101 | ... | Baixada | Loja B | Empresa B LTDA | 2022-07-01 | Extinção voluntária |
-| 60701190000104 | ... | Inativa | — | Empresa C ME | 2019-11-20 | Inapta por omissão |
+| Coluna | Descrição | Exemplo real |
+|---|---|---|
+| `status` | Situação normalizada | `Ativa`, `Baixada`, `Inativa` |
+| `nome_fantasia` | Nome fantasia cadastrado | `MAKSOUD PLAZA HOTEL` |
+| `razao_social` | Razão social completa | `HM HOTEIS E TURISMO S A` |
+| `data_situacao_cadastral` | Data da última alteração de status | `26/09/2023` |
+| `motivo_situacao_cadastral` | Motivo registrado na Receita Federal | `EXTINCAO POR ENCERRAMENTO LIQUIDACAO VOLUNTARIA` |
+
+> Quando não há nome fantasia cadastrado, o campo `nome_fantasia` fica vazio — use `razao_social` como fallback (o relatório HTML faz isso automaticamente).
+
+> O motivo `SEM MOTIVO` é retornado pela API para empresas ativas sem ocorrência registrada.
 
 ### `relatorio_cnpj_status.html`
 
 Relatório visual no padrão Big4 com duas seções:
 
-1. **Quadro Geral** — cards com total, contagem e percentual por status, tabela de distribuição com barras de progresso
-2. **Empresas Não-Ativas** — tabela filtrável com CNPJ formatado, nome fantasia (ou razão social), status colorido, data de alteração e motivo
+1. **Quadro Geral** — cards com total, contagem e percentual por status (Ativa / Baixada / Inativa / Erro), tabela de distribuição com barras de progresso
+2. **Empresas Não-Ativas** — tabela filtrável por CNPJ, nome ou status, exibindo apenas empresas fora da situação Ativa; cada linha traz CNPJ formatado (`XX.XXX.XXX/XXXX-XX`), nome fantasia com fallback para razão social, badge de status colorido, data de alteração e motivo
 
 > Ambos os arquivos são salvos no **diretório de trabalho atual** onde o script é executado.
 
