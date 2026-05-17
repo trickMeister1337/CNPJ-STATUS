@@ -92,7 +92,8 @@ def _cor_status(status):
 
 
 def _formatar_cnpj(cnpj):
-    c = str(cnpj).strip().zfill(14)
+    # Remove pontuação antes de formatar — o valor pode já vir formatado do Excel
+    c = "".join(ch for ch in str(cnpj) if ch.isdigit()).zfill(14)
     return f"{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:14]}"
 
 
