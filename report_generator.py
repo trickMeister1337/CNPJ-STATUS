@@ -261,10 +261,10 @@ def gerar_relatorio(df, nome_arquivo):
         h += '<table id="tbl-nao-ativas">\n'
         h += (
             '<thead><tr>'
-            '<th>CNPJ</th>'
+            '<th style="white-space:nowrap;width:160px">CNPJ</th>'
             '<th>Nome Fantasia / Razão Social</th>'
-            '<th>Status</th>'
-            '<th>Data de Alteração</th>'
+            '<th style="white-space:nowrap">Status</th>'
+            '<th style="white-space:nowrap;width:130px">Data de Alteração</th>'
             '<th>Motivo</th>'
             '</tr></thead>\n'
             '<tbody>\n'
@@ -282,10 +282,10 @@ def gerar_relatorio(df, nome_arquivo):
 
             h += (
                 f'<tr>'
-                f'<td><code>{esc(cnpj_fmt)}</code></td>'
+                f'<td style="white-space:nowrap;width:160px"><code>{esc(cnpj_fmt)}</code></td>'
                 f'<td>{nome}</td>'
-                f'<td><span class="sb" style="background:{cor}">{esc(status)}</span></td>'
-                f'<td style="white-space:nowrap">{esc(data_alt)}</td>'
+                f'<td style="white-space:nowrap"><span class="sb" style="background:{cor}">{esc(status)}</span></td>'
+                f'<td style="white-space:nowrap;width:130px">{esc(data_alt)}</td>'
                 f'<td>{motivo}</td>'
                 f'</tr>\n'
             )
