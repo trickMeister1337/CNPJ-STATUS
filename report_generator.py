@@ -5,6 +5,7 @@ CNPJ-STATUS — Gerador de Relatório (Big4 Style).
 Uso direto: chamado automaticamente pelo cnpj_status.py ao final da execução.
 """
 
+import re
 import html as H
 import os
 from datetime import datetime
@@ -22,7 +23,7 @@ _CORES = {
 
 _CSS = """
 body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;background:#f0f2f5}
-.ctn{max-width:1200px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.1)}
+.ctn{max-width:1300px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.1)}
 .hdr{background:#1a3a4f;color:#fff;padding:40px 30px;text-align:center}
 .hdr h1{margin:0 0 5px;font-size:1.6em;letter-spacing:2px;text-transform:uppercase}
 .hdr .sub{font-size:1.1em;opacity:.9;margin:5px 0}
@@ -57,12 +58,13 @@ tr:nth-child(even) td{background:#fafafa}
 .toc a{color:#1a3a4f;text-decoration:none}
 .toc a:hover{text-decoration:underline}
 .toc li{margin:4px 0}
-code{background:#f4f4f4;padding:1px 5px;border-radius:3px;font-size:.85em;font-family:'Cascadia Code',monospace}
-.filtro-wrap{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+code{background:#f4f4f4;padding:1px 5px;border-radius:3px;font-size:.85em;font-family:'Cascadia Code',monospace;white-space:nowrap}
+.filtro-wrap{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
 .filtro-wrap input{padding:8px 12px;border:1px solid #ddd;border-radius:6px;width:320px;font-size:.9em;outline:none}
 .filtro-wrap input:focus{border-color:#1a3a4f}
 .cnt-badge{background:#1a3a4f;color:#fff;padding:2px 10px;border-radius:10px;font-size:.75em;font-weight:700}
 .dist-table td:nth-child(4){min-width:160px}
+.diag{font-size:.82em;color:#555;font-style:italic}
 """
 
 _JS = """
@@ -126,6 +128,19 @@ def _nome_display(row):
     return "—"
 
 
+def _classificar_erro(cnpj, status_raw):
+    """Classifica a causa do erro com base no formato do CNPJ e na mensagem de status."""
+    digitos = re.sub(r'\D', '', str(cnpj))
+    if len(digitos) == 11:
+        return "CPF cadastrado no lugar de CNPJ"
+    if len(digitos) < 14:
+        return "Dado incompleto ou CNPJ alfanumérico (novo formato 2026)"
+    filial = digitos[8:12]
+    if filial != "0001":
+        return f"Filial /{filial} — OpenCNPJ indexa apenas a matriz"
+    return "CNPJ recente não indexado pela OpenCNPJ"
+
+
 def _sort_key_status(status):
     s = str(status).lower()
     if s == "baixada":         return 0
@@ -159,13 +174,15 @@ def gerar_relatorio(df, nome_arquivo):
     def pct(n):
         return f"{n / total * 100:.1f}" if total > 0 else "0.0"
 
-    # Filtra não-ativas e ordena: Baixada → Inativa → Desconhecido → Erro
+    # Inclui todos os não-Ativos: Baixada, Inativa e Erros
     df_nao = df[df["status"] != "Ativa"].copy()
     df_nao = df_nao.sort_values(
         by=["status", "cnpj"],
         key=lambda col: col.map(_sort_key_status) if col.name == "status" else col,
     )
-    n_nao = len(df_nao)
+    n_nao    = len(df_nao)
+    n_erros  = len(df_nao[df_nao["status"].str.startswith("Erro", na=False)])
+    n_validas = n_nao - n_erros
 
     # ── HTML ──────────────────────────────────────────────────────────────────
     nome_base = os.path.basename(nome_arquivo)
@@ -194,7 +211,7 @@ def gerar_relatorio(df, nome_arquivo):
   <strong>Índice</strong>
   <ol>
     <li><a href="#s1">Quadro Geral</a></li>
-    <li><a href="#s2">Empresas Não-Ativas ({n_nao:,})</a></li>
+    <li><a href="#s2">Detalhamento — Não-Ativas e Erros ({n_nao:,})</a></li>
   </ol>
 </div>
 
@@ -211,12 +228,11 @@ def gerar_relatorio(df, nome_arquivo):
     h += f'<div class="sc s-er"><div class="n">{erros:,}</div><div class="l">Erro</div><div class="p">{pct(erros)}%</div></div>\n'
     h += '</div>\n'
 
-    # Tabela de distribuição com barra de progresso
     dist_rows = [
-        ("Ativa",   ativas,   _CORES["ativa"],   "s-at"),
-        ("Baixada", baixadas, _CORES["baixada"],  "s-bx"),
-        ("Inativa", inativas, _CORES["inativa"],  "s-in"),
-        ("Erro / Desconhecido", erros, _CORES["erro"], "s-er"),
+        ("Ativa",              ativas,   _CORES["ativa"],   "s-at"),
+        ("Baixada",            baixadas, _CORES["baixada"],  "s-bx"),
+        ("Inativa",            inativas, _CORES["inativa"],  "s-in"),
+        ("Erro / Desconhecido", erros,   _CORES["erro"],     "s-er"),
     ]
 
     h += '<table class="dist-table">\n'
@@ -233,26 +249,25 @@ def gerar_relatorio(df, nome_arquivo):
         )
     h += '</table>\n'
 
-    # Parágrafo de contexto
     if ativas == total:
         h += '<div class="ib g"><p><strong>Todos os CNPJs consultados estão com situação Ativa.</strong></p></div>\n'
     else:
         h += (
             f'<div class="ib w"><p>'
-            f'<strong>{n_nao:,} empresa(s) ({pct(n_nao)}%)</strong> não estão com situação Ativa '
-            f'— detalhamento na seção 2.'
+            f'<strong>{n_validas:,} empresa(s) com situação irregular</strong> (Baixada ou Inativa) '
+            f'e <strong>{n_erros:,} CNPJ(s) com erro de consulta</strong> — detalhamento na seção 2.'
             f'</p></div>\n'
         )
 
-    # ── Seção 2: Empresas Não-Ativas ─────────────────────────────────────────
-    h += f'<h2 id="s2">2. Empresas Não-Ativas <span class="cnt-badge">{n_nao:,}</span></h2>\n'
+    # ── Seção 2: Detalhamento ─────────────────────────────────────────────────
+    h += f'<h2 id="s2">2. Detalhamento — Não-Ativas e Erros <span class="cnt-badge">{n_nao:,}</span></h2>\n'
 
     if n_nao == 0:
         h += '<div class="ib g"><p>Nenhuma empresa fora da situação Ativa.</p></div>\n'
     else:
         h += (
             '<div class="filtro-wrap">'
-            '<input type="text" id="filtro" placeholder="Filtrar por CNPJ, nome ou status..." '
+            '<input type="text" id="filtro" placeholder="Filtrar por CNPJ, nome, status ou diagnóstico..." '
             'onkeyup="filtrarTabela()">'
             f'<span>Exibindo <strong id="cnt-vis">{n_nao}</strong> de {n_nao:,}</span>'
             '</div>\n'
@@ -263,30 +278,39 @@ def gerar_relatorio(df, nome_arquivo):
             '<thead><tr>'
             '<th style="white-space:nowrap;width:160px">CNPJ</th>'
             '<th>Nome Fantasia / Razão Social</th>'
-            '<th style="white-space:nowrap">Status</th>'
+            '<th style="white-space:nowrap;width:90px">Status</th>'
             '<th style="white-space:nowrap;width:130px">Data de Alteração</th>'
-            '<th>Motivo</th>'
+            '<th>Motivo / Diagnóstico</th>'
             '</tr></thead>\n'
             '<tbody>\n'
         )
 
         for _, row in df_nao.iterrows():
-            cnpj_fmt  = _formatar_cnpj(row["cnpj"])
-            nome      = esc(_nome_display(row))
-            status    = str(row["status"])
-            cor       = _cor_status(status)
-            data_alt  = _formatar_data(row.get("data_situacao_cadastral", ""))
-            motivo    = esc(str(row.get("motivo_situacao_cadastral", "") or "—"))
-            if motivo in ("", "nan", "None"):
-                motivo = "—"
+            cnpj_fmt   = _formatar_cnpj(row["cnpj"])
+            status_raw = str(row["status"])
+            is_erro    = status_raw.startswith("Erro")
+            cor        = _cor_status(status_raw)
+
+            if is_erro:
+                status_display = "Erro"
+                nome           = "—"
+                data_alt       = "—"
+                motivo         = esc(_classificar_erro(row["cnpj"], status_raw))
+                motivo_html    = f'<span class="diag">{motivo}</span>'
+            else:
+                status_display = status_raw
+                nome           = esc(_nome_display(row))
+                data_alt       = _formatar_data(row.get("data_situacao_cadastral", ""))
+                motivo_raw     = str(row.get("motivo_situacao_cadastral", "") or "—")
+                motivo_html    = esc(motivo_raw) if motivo_raw not in ("", "nan", "None") else "—"
 
             h += (
                 f'<tr>'
                 f'<td style="white-space:nowrap;width:160px"><code>{esc(cnpj_fmt)}</code></td>'
                 f'<td>{nome}</td>'
-                f'<td style="white-space:nowrap"><span class="sb" style="background:{cor}">{esc(status)}</span></td>'
+                f'<td style="white-space:nowrap"><span class="sb" style="background:{cor}">{esc(status_display)}</span></td>'
                 f'<td style="white-space:nowrap;width:130px">{esc(data_alt)}</td>'
-                f'<td>{motivo}</td>'
+                f'<td>{motivo_html}</td>'
                 f'</tr>\n'
             )
 
