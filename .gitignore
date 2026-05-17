@@ -6,13 +6,16 @@ __pycache__/
 venv/
 env/
 
-# Dados sensíveis — nunca versionar planilhas com CNPJs
+# Planilhas — dados sensíveis (input e output)
 *.csv
 *.xlsx
 *.xls
 
-# Saída gerada
-resultado_cnpjs.xlsx
+# Relatórios gerados
+*.html
+
+# Logs de execução
+*.log
 
 # OS
 .DS_Store

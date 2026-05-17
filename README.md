@@ -21,7 +21,7 @@ Consulta em lote a situação cadastral de CNPJs diretamente pela API pública [
 
 ## Funcionalidades
 
-- Lê planilhas `.csv` ou `.xlsx` com uma coluna `cnpj`
+- Lê planilhas `.csv` ou `.xlsx` com uma coluna `cnpj` (aceita maiúscula ou minúscula)
 - Normaliza automaticamente o CNPJ (remove pontuação, preenche com zeros à esquerda)
 - Consulta o endpoint `GET /cnpj/{cnpj}` da API OpenCNPJ
 - Extrai situação cadastral, nome fantasia, razão social, data e motivo da alteração
@@ -29,7 +29,7 @@ Consulta em lote a situação cadastral de CNPJs diretamente pela API pública [
 - Processa em **lotes com pausas**, respeitando a política anti-bloqueio da API
 - Retentativas automáticas com backoff progressivo em caso de `429`
 - Salva `resultado_cnpjs.xlsx` com todas as colunas enriquecidas
-- Gera **relatório HTML no padrão Big4** com quadro geral e detalhamento das empresas não-ativas
+- Gera **relatório HTML no padrão Big4** com quadro geral e detalhamento completo — inclui empresas não-ativas e erros com diagnóstico da causa
 - Exibe progresso em tempo real e estimativa de duração total
 
 ---
@@ -113,7 +113,7 @@ python cnpj_status.py fornecedores.xlsx
 
 ## Formato da planilha de entrada
 
-A planilha deve conter **obrigatoriamente** uma coluna chamada `cnpj`. As demais colunas são preservadas intactas na saída.
+A planilha deve conter **obrigatoriamente** uma coluna chamada `cnpj` (maiúscula ou minúscula — o script normaliza automaticamente). As demais colunas são preservadas intactas na saída.
 
 | cnpj | razao_social | ... |
 |---|---|---|
@@ -122,6 +122,8 @@ A planilha deve conter **obrigatoriamente** uma coluna chamada `cnpj`. As demais
 | 60701190000104 | Empresa C | ... |
 
 O script aceita CNPJs com ou sem pontuação (`/`, `.`, `-`).
+
+> **Atenção:** entradas que não sejam CNPJs válidos (CPFs, códigos alfanuméricos, dados incompletos) serão processadas normalmente mas receberão um erro com o diagnóstico da causa no relatório.
 
 ---
 
@@ -148,7 +150,9 @@ Contém todas as colunas originais acrescidas de 5 campos enriquecidos pela API:
 Relatório visual no padrão Big4 com duas seções:
 
 1. **Quadro Geral** — cards com total, contagem e percentual por status (Ativa / Baixada / Inativa / Erro), tabela de distribuição com barras de progresso
-2. **Empresas Não-Ativas** — tabela filtrável por CNPJ, nome ou status, exibindo apenas empresas fora da situação Ativa; cada linha traz CNPJ formatado (`XX.XXX.XXX/XXXX-XX`), nome fantasia com fallback para razão social, badge de status colorido, data de alteração e motivo
+2. **Detalhamento — Não-Ativas e Erros** — tabela filtrável com **todas** as entradas fora da situação Ativa, incluindo:
+   - Empresas **Baixadas** e **Inativas**: CNPJ formatado, nome fantasia (fallback para razão social), badge de status, data de alteração e motivo da Receita Federal
+   - **Erros de consulta**: badge "Erro" + diagnóstico da causa em itálico (CPF na base, CNPJ incompleto/alfanumérico, filial sem registro, ou CNPJ recente não indexado pela OpenCNPJ)
 
 > Ambos os arquivos são salvos no **diretório de trabalho atual** onde o script é executado.
 
@@ -197,16 +201,27 @@ Para ajustar a cadência, edite as constantes no topo do arquivo `cnpj_status.py
 
 ## Tratamento de erros
 
-| Situação | Mensagem gravada na coluna `status` |
-|---|---|
-| HTTP 404 | `Erro na consulta: CNPJ não encontrado (404)` |
-| HTTP 429 após 3 tentativas | `Erro na consulta: rate limit (429) após 3 tentativas` |
-| Timeout | `Erro na consulta: timeout` |
-| Falha de conexão | `Erro na consulta: falha de conexão` |
-| JSON inválido / campo ausente | `Erro na consulta: resposta inesperada (...)` |
-| Outro código HTTP | `Erro na consulta: HTTP [código]` |
+| Situação | Mensagem na coluna `status` | Diagnóstico no relatório |
+|---|---|---|
+| HTTP 404 | `Erro na consulta: CNPJ não encontrado (404)` | Classificado automaticamente (ver abaixo) |
+| HTTP 429 após 3 tentativas | `Erro na consulta: rate limit (429) após 3 tentativas` | — |
+| Timeout | `Erro na consulta: timeout` | — |
+| Falha de conexão | `Erro na consulta: falha de conexão` | — |
+| JSON inválido / campo ausente | `Erro na consulta: resposta inesperada (...)` | — |
+| Outro código HTTP | `Erro na consulta: HTTP [código]` | — |
 
 Erros individuais **não interrompem** o processamento — o script continua para o próximo CNPJ e registra a falha na planilha.
+
+### Diagnóstico automático de erros no relatório
+
+O relatório classifica a causa provável de cada erro na coluna **Motivo / Diagnóstico**:
+
+| Diagnóstico | Causa |
+|---|---|
+| CPF cadastrado no lugar de CNPJ | Entrada com 11 dígitos — é um CPF, não um CNPJ |
+| Dado incompleto ou CNPJ alfanumérico (novo formato 2026) | Menos de 14 dígitos após remover pontuação |
+| Filial `/XXXX` — OpenCNPJ indexa apenas a matriz | CNPJ de estabelecimento filial; consultar `/0001` |
+| CNPJ recente não indexado pela OpenCNPJ | CNPJ válido mas ausente na base (registro recente) |
 
 ---
 

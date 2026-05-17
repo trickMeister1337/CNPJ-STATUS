@@ -196,6 +196,7 @@ def main(caminho_entrada):
     print(f"[*] Carregando planilha: {caminho_entrada}")
     df = carregar_planilha(caminho_entrada)
 
+    df.columns = [c.strip().lower() for c in df.columns]
     if "cnpj" not in df.columns:
         raise ValueError("Coluna 'cnpj' não encontrada na planilha.")
 
