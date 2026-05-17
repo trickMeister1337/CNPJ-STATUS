@@ -24,10 +24,12 @@ Consulta em lote a situação cadastral de CNPJs diretamente pela API pública [
 - Lê planilhas `.csv` ou `.xlsx` com uma coluna `cnpj`
 - Normaliza automaticamente o CNPJ (remove pontuação, preenche com zeros à esquerda)
 - Consulta o endpoint `GET /cnpj/{cnpj}` da API OpenCNPJ
+- Extrai situação cadastral, nome fantasia, razão social, data e motivo da alteração
 - Mapeia a situação cadastral para um status padronizado em português
 - Processa em **lotes com pausas**, respeitando a política anti-bloqueio da API
-- Retenativas automáticas com backoff progressivo em caso de `429`
-- Salva o resultado em `resultado_cnpjs.xlsx` com a coluna `status` adicionada
+- Retentativas automáticas com backoff progressivo em caso de `429`
+- Salva `resultado_cnpjs.xlsx` com todas as colunas enriquecidas
+- Gera **relatório HTML no padrão Big4** com quadro geral e detalhamento das empresas não-ativas
 - Exibe progresso em tempo real e estimativa de duração total
 
 ---
@@ -124,15 +126,24 @@ O script aceita CNPJs com ou sem pontuação (`/`, `.`, `-`).
 
 ## Saída gerada
 
-O arquivo `resultado_cnpjs.xlsx` contém todas as colunas originais acrescidas da coluna `status`:
+### `resultado_cnpjs.xlsx`
 
-| cnpj | razao_social | ... | status |
-|---|---|---|---|
-| 00.000.000/0001-91 | Empresa A | ... | Ativa |
-| 33000167000101 | Empresa B | ... | Baixada |
-| 60701190000104 | Empresa C | ... | Inativa |
+Contém todas as colunas originais acrescidas dos campos enriquecidos pela API:
 
-> O arquivo de saída é sempre salvo no **diretório de trabalho atual** onde o script é executado.
+| cnpj | ... | status | nome_fantasia | razao_social | data_situacao_cadastral | motivo_situacao_cadastral |
+|---|---|---|---|---|---|---|
+| 00.000.000/0001-91 | ... | Ativa | — | Empresa A S.A. | 2010-03-15 | — |
+| 33000167000101 | ... | Baixada | Loja B | Empresa B LTDA | 2022-07-01 | Extinção voluntária |
+| 60701190000104 | ... | Inativa | — | Empresa C ME | 2019-11-20 | Inapta por omissão |
+
+### `relatorio_cnpj_status.html`
+
+Relatório visual no padrão Big4 com duas seções:
+
+1. **Quadro Geral** — cards com total, contagem e percentual por status, tabela de distribuição com barras de progresso
+2. **Empresas Não-Ativas** — tabela filtrável com CNPJ formatado, nome fantasia (ou razão social), status colorido, data de alteração e motivo
+
+> Ambos os arquivos são salvos no **diretório de trabalho atual** onde o script é executado.
 
 ---
 
@@ -196,7 +207,8 @@ Erros individuais **não interrompem** o processamento — o script continua par
 
 ```
 CNPJ-STATUS/
-├── cnpj_status.py   # Script principal
+├── cnpj_status.py       # Script principal — consulta, retry e orquestração
+├── report_generator.py  # Gerador do relatório HTML (Big4 style)
 ├── .gitignore
 └── README.md
 ```
