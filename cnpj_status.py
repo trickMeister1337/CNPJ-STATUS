@@ -42,6 +42,8 @@ MAPA_SITUACAO = {
     "nula":     "Inativa",
 }
 
+STATUS_CPF = "CPF — não consultado"
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -72,6 +74,17 @@ def _resultado_erro(msg):
     """Retorna dicionário padronizado para casos de erro na requisição."""
     return {
         "status":                    f"Erro na consulta: {msg}",
+        "nome_fantasia":             "",
+        "razao_social":              "",
+        "data_situacao_cadastral":   "",
+        "motivo_situacao_cadastral": "",
+    }
+
+
+def _resultado_cpf():
+    """Retorna dicionário para entradas identificadas como CPF — sem consulta à API."""
+    return {
+        "status":                    STATUS_CPF,
         "nome_fantasia":             "",
         "razao_social":              "",
         "data_situacao_cadastral":   "",
@@ -212,6 +225,12 @@ def main(caminho_entrada):
     resultados = []
 
     for i, valor in enumerate(df["cnpj"], start=1):
+        digitos_raw = "".join(c for c in str(valor) if c.isdigit())
+        if len(digitos_raw) == 11:
+            resultados.append(_resultado_cpf())
+            print(f"  [{i:>{largura}}/{total}] ⊘ {str(valor).strip()} → CPF — ignorado")
+            continue
+
         cnpj   = normalizar_cnpj(valor)
         result = consultar_cnpj(cnpj)
         resultados.append(result)

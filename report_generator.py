@@ -150,6 +150,9 @@ def _sort_key_status(status):
     return 4
 
 
+_STATUS_CPF = "CPF — não consultado"
+
+
 def gerar_relatorio(df, nome_arquivo):
     """
     Gera o relatório HTML no padrão Big4.
@@ -162,6 +165,9 @@ def gerar_relatorio(df, nome_arquivo):
     Retorna o caminho do arquivo HTML gerado.
     """
     now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    # CPFs são registrados no Excel mas excluídos integralmente do relatório HTML
+    df = df[df["status"] != _STATUS_CPF].copy()
     total = len(df)
 
     contagem = df["status"].value_counts().to_dict()
