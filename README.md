@@ -6,6 +6,8 @@ Consulta em lote a situação cadastral de CNPJs diretamente pela API pública [
 
 ## Sumário
 
+- [Fluxo recomendado](#fluxo-recomendado)
+- [Higienização prévia — `cnpj_hygiene.py`](#higienização-prévia--cnpj_hygienepy)
 - [Funcionalidades](#funcionalidades)
 - [Pré-requisitos](#pré-requisitos)
 - [Instalação](#instalação)
@@ -16,6 +18,80 @@ Consulta em lote a situação cadastral de CNPJs diretamente pela API pública [
 - [Política de limites e cadência](#política-de-limites-e-cadência)
 - [Tratamento de erros](#tratamento-de-erros)
 - [Estrutura do projeto](#estrutura-do-projeto)
+
+---
+
+## Fluxo recomendado
+
+Para bases de dados reais (clientes, fornecedores), execute sempre a higienização antes da consulta:
+
+```bash
+# Passo 1 — Higienizar a planilha
+python cnpj_hygiene.py sua_base.xlsx
+
+# Passo 2 — Consultar apenas os CNPJs válidos
+python cnpj_status.py cnpjs_validos.xlsx
+```
+
+O `cnpj_hygiene.py` separa automaticamente o que vai para consulta do que precisa de revisão manual, evitando desperdício de tempo de API em entradas inválidas.
+
+---
+
+## Higienização prévia — `cnpj_hygiene.py`
+
+Analisa e classifica cada entrada da planilha antes de enviar à API, separando CNPJs aptos para consulta dos que exigem revisão.
+
+### Uso
+
+```bash
+python cnpj_hygiene.py planilha.xlsx
+python cnpj_hygiene.py planilha.csv
+```
+
+### Classificações
+
+| Classificação | Critério |
+|---|---|
+| `VALIDO` | 14 dígitos, dígitos verificadores corretos, estabelecimento `/0001` (matriz) |
+| `FILIAL` | CNPJ válido com estabelecimento diferente de `/0001` |
+| `CPF` | Exatamente 11 dígitos numéricos |
+| `INCOMPLETO` | Menos de 11 ou entre 12 e 13 dígitos; ou mais de 14 dígitos |
+| `ALFANUMERICO` | Contém letras — provável novo formato CNPJ 2026 |
+| `INVALIDO` | 14 dígitos, mas dígitos verificadores incorretos |
+| `VAZIO` | Célula vazia ou nula |
+
+### Saída gerada
+
+**`cnpjs_validos.xlsx`** — apenas entradas `VALIDO`, prontas para o `cnpj_status.py`. Preserva todas as colunas originais.
+
+**`cnpjs_revisao.xlsx`** — planilha multi-aba para conferência manual:
+
+| Aba | Conteúdo |
+|---|---|
+| `Filiais` | CNPJs de filiais com raiz e número do estabelecimento |
+| `CPF` | Entradas com 11 dígitos identificadas como CPF |
+| `Inconsistentes` | Incompletos, inválidos, alfanuméricos e vazios |
+
+### Saída no terminal
+
+```
+╔═════════════════════════════════════════════════════════╗
+║        CNPJ-HYGIENE — Resultado da Higienização         ║
+╠═════════════════════════════════════════════════════════╣
+║  Total analisado  :   8044                              ║
+╠═════════════════════════════════════════════════════════╣
+║  ✓  Válidos (matriz)  :  6804  ████████████████░░░░░░   84.6%  ║
+╠═════════════════════════════════════════════════════════╣
+║  ↳  Filiais           :  1200  ██░░░░░░░░░░░░░░░░░░░░   14.9%  ║
+║  ✗  CPF               :    27  ░░░░░░░░░░░░░░░░░░░░░░    0.3%  ║
+║  ✗  Alfanumérico      :    13  ░░░░░░░░░░░░░░░░░░░░░░    0.2%  ║
+╠═════════════════════════════════════════════════════════╣
+║  Para revisão manual  :  1240  ██░░░░░░░░░░░░░░░░░░░░   15.4%  ║
+╚═════════════════════════════════════════════════════════╝
+
+Próximo passo:
+  python cnpj_status.py cnpjs_validos.xlsx
+```
 
 ---
 
@@ -229,6 +305,7 @@ O relatório classifica a causa provável de cada erro na coluna **Motivo / Diag
 
 ```
 CNPJ-STATUS/
+├── cnpj_hygiene.py      # Higienização prévia — classifica e separa CNPJs
 ├── cnpj_status.py       # Script principal — consulta, retry e orquestração
 ├── report_generator.py  # Gerador do relatório HTML (Big4 style)
 ├── .gitignore
